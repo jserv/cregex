@@ -130,7 +130,6 @@ static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
     cregex_node_t *bottom = context->stack;
 
     for (;;) {
-        cregex_node_t *left, *right;
         int ch = *context->sp++;
         switch (ch) {
         /* Characters */
@@ -152,8 +151,8 @@ static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
             break;
 
         /* Composites */
-        case '|':
-            left = concatenate(context, bottom);
+        case '|': {
+            cregex_node_t *left = concatenate(context, bottom), *right;
             if (!(right = parse_context(context, depth)))
                 return NULL;
             if (left->type == REGEX_NODE_TYPE_EPSILON &&
@@ -186,8 +185,8 @@ static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
                                       .right = right});
             }
             return bottom;
+        }
 
-            /* Quantifiers */
 #define QUANTIFIER(ch, min, max)                                           \
     case ch:                                                               \
         if (context->stack == bottom)                                      \
@@ -201,9 +200,12 @@ static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
                  .quantified = consume(context)});                         \
         break
 
-            QUANTIFIER('?', 0, 1);
-            QUANTIFIER('*', 0, -1);
-            QUANTIFIER('+', 1, -1);
+            /* clang-format off */
+        /* Quantifiers */
+        QUANTIFIER('?', 0, 1);
+        QUANTIFIER('*', 0, -1);
+        QUANTIFIER('+', 1, -1);
+            /* clang-format on */
 #undef QUANTIFIER
 
         case '{':
