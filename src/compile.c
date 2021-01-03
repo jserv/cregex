@@ -48,6 +48,9 @@ static int count_instructions(const cregex_node_t *node)
     case REGEX_NODE_TYPE_CAPTURE:
         return 2 + count_instructions(node->captured);
     }
+
+    /* should not reach here */
+    return 0;
 }
 
 static bool node_is_anchored(const cregex_node_t *node)
@@ -83,6 +86,9 @@ static bool node_is_anchored(const cregex_node_t *node)
     case REGEX_NODE_TYPE_CAPTURE:
         return node_is_anchored(node->captured);
     }
+
+    /* should not reach here */
+    return false;
 }
 
 static inline cregex_program_instr_t *emit(
