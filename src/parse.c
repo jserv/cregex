@@ -13,38 +13,38 @@ typedef struct {
  * See https://en.wikipedia.org/wiki/Shunting-yard_algorithm
  */
 
-static inline cregex_node_t *parse_push(cregex_parseContext *context,
-                                        const cregex_node_t *node)
+static inline cregex_node_t *push(cregex_parseContext *context,
+                                  const cregex_node_t *node)
 {
     assert(context->stack <= context->output);
     *context->stack = *node;
     return context->stack++;
 }
 
-static inline cregex_node_t *parse_drop(cregex_parseContext *context)
+static inline cregex_node_t *drop(cregex_parseContext *context)
 {
     return --context->stack;
 }
 
-static inline cregex_node_t *parse_consume(cregex_parseContext *context)
+static inline cregex_node_t *consume(cregex_parseContext *context)
 {
     *--context->output = *--context->stack;
     return context->output;
 }
 
-static inline cregex_node_t *parse_concatenate(cregex_parseContext *context,
-                                               const cregex_node_t *bottom)
+static inline cregex_node_t *concatenate(cregex_parseContext *context,
+                                         const cregex_node_t *bottom)
 {
     if (context->stack == bottom)
-        parse_push(context, &(cregex_node_t){.type = REGEX_NODE_TYPE_EPSILON});
+        push(context, &(cregex_node_t){.type = REGEX_NODE_TYPE_EPSILON});
     else {
         while (context->stack - 1 > bottom) {
-            cregex_node_t *right = parse_consume(context);
-            cregex_node_t *left = parse_consume(context);
-            parse_push(context,
-                       &(cregex_node_t){.type = REGEX_NODE_TYPE_CONCATENATION,
-                                        .left = left,
-                                        .right = right});
+            cregex_node_t *right = consume(context);
+            cregex_node_t *left = consume(context);
+            push(context,
+                 &(cregex_node_t){.type = REGEX_NODE_TYPE_CONCATENATION,
+                                  .left = left,
+                                  .right = right});
         }
     }
     return context->stack - 1;
@@ -67,9 +67,9 @@ static cregex_node_t *parse_char_class(cregex_parseContext *context)
         case ']':
             if (context->sp - 1 == from)
                 goto CHARACTER;
-            return parse_push(context, &(cregex_node_t){.type = type,
-                                                        .from = from,
-                                                        .to = context->sp - 1});
+            return push(context,
+                        &(cregex_node_t){
+                            .type = type, .from = from, .to = context->sp - 1});
         case '\\':
             ch = *context->sp++;
             /* fall-through */
@@ -116,13 +116,13 @@ static cregex_node_t *parse_interval(cregex_parseContext *context)
     }
 
     ++context->sp;
-    return parse_push(
-        context, &(cregex_node_t){
-                     .type = REGEX_NODE_TYPE_QUANTIFIER,
-                     .nmin = nmin,
-                     .nmax = nmax,
-                     .greedy = (*context->sp == '?') ? (++context->sp, 0) : 1,
-                     .quantified = parse_consume(context)});
+    return push(context,
+                &(cregex_node_t){
+                    .type = REGEX_NODE_TYPE_QUANTIFIER,
+                    .nmin = nmin,
+                    .nmax = nmax,
+                    .greedy = (*context->sp == '?') ? (++context->sp, 0) : 1,
+                    .quantified = consume(context)});
 }
 
 static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
@@ -139,13 +139,12 @@ static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
             /* fall-through */
         default:
         CHARACTER:
-            parse_push(
-                context,
-                &(cregex_node_t){.type = REGEX_NODE_TYPE_CHARACTER, .ch = ch});
+            push(context,
+                 &(cregex_node_t){.type = REGEX_NODE_TYPE_CHARACTER, .ch = ch});
             break;
         case '.':
-            parse_push(context,
-                       &(cregex_node_t){.type = REGEX_NODE_TYPE_ANY_CHARACTER});
+            push(context,
+                 &(cregex_node_t){.type = REGEX_NODE_TYPE_ANY_CHARACTER});
             break;
         case '[':
             if (!parse_char_class(context))
@@ -154,53 +153,52 @@ static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
 
         /* Composites */
         case '|':
-            left = parse_concatenate(context, bottom);
+            left = concatenate(context, bottom);
             if (!(right = parse_context(context, depth)))
                 return NULL;
             if (left->type == REGEX_NODE_TYPE_EPSILON &&
                 right->type == left->type) {
-                parse_drop(context);
+                drop(context);
             } else if (left->type == REGEX_NODE_TYPE_EPSILON) {
-                right = parse_consume(context);
-                parse_drop(context);
-                parse_push(context,
-                           &(cregex_node_t){.type = REGEX_NODE_TYPE_QUANTIFIER,
-                                            .nmin = 0,
-                                            .nmax = 1,
-                                            .greedy = 1,
-                                            .quantified = right});
+                right = consume(context);
+                drop(context);
+                push(context,
+                     &(cregex_node_t){.type = REGEX_NODE_TYPE_QUANTIFIER,
+                                      .nmin = 0,
+                                      .nmax = 1,
+                                      .greedy = 1,
+                                      .quantified = right});
             } else if (right->type == REGEX_NODE_TYPE_EPSILON) {
-                parse_drop(context);
-                left = parse_consume(context);
-                parse_push(context,
-                           &(cregex_node_t){.type = REGEX_NODE_TYPE_QUANTIFIER,
-                                            .nmin = 0,
-                                            .nmax = 1,
-                                            .greedy = 1,
-                                            .quantified = left});
+                drop(context);
+                left = consume(context);
+                push(context,
+                     &(cregex_node_t){.type = REGEX_NODE_TYPE_QUANTIFIER,
+                                      .nmin = 0,
+                                      .nmax = 1,
+                                      .greedy = 1,
+                                      .quantified = left});
             } else {
-                right = parse_consume(context);
-                left = parse_consume(context);
-                parse_push(context,
-                           &(cregex_node_t){.type = REGEX_NODE_TYPE_ALTERNATION,
-                                            .left = left,
-                                            .right = right});
+                right = consume(context);
+                left = consume(context);
+                push(context,
+                     &(cregex_node_t){.type = REGEX_NODE_TYPE_ALTERNATION,
+                                      .left = left,
+                                      .right = right});
             }
             return bottom;
 
             /* Quantifiers */
-#define QUANTIFIER(ch, min, max)                                          \
-    case ch:                                                              \
-        if (context->stack == bottom)                                     \
-            goto CHARACTER;                                               \
-        parse_push(                                                       \
-            context,                                                      \
-            &(cregex_node_t){                                             \
-                .type = REGEX_NODE_TYPE_QUANTIFIER,                       \
-                .nmin = min,                                              \
-                .nmax = max,                                              \
-                .greedy = (*context->sp == '?') ? (++context->sp, 0) : 1, \
-                .quantified = parse_consume(context)});                   \
+#define QUANTIFIER(ch, min, max)                                           \
+    case ch:                                                               \
+        if (context->stack == bottom)                                      \
+            goto CHARACTER;                                                \
+        push(context,                                                      \
+             &(cregex_node_t){                                             \
+                 .type = REGEX_NODE_TYPE_QUANTIFIER,                       \
+                 .nmin = min,                                              \
+                 .nmax = max,                                              \
+                 .greedy = (*context->sp == '?') ? (++context->sp, 0) : 1, \
+                 .quantified = consume(context)});                         \
         break
 
             QUANTIFIER('?', 0, 1);
@@ -215,32 +213,30 @@ static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
 
         /* Anchors */
         case '^':
-            parse_push(context,
-                       &(cregex_node_t){.type = REGEX_NODE_TYPE_ANCHOR_BEGIN});
+            push(context,
+                 &(cregex_node_t){.type = REGEX_NODE_TYPE_ANCHOR_BEGIN});
             break;
         case '$':
-            parse_push(context,
-                       &(cregex_node_t){.type = REGEX_NODE_TYPE_ANCHOR_END});
+            push(context, &(cregex_node_t){.type = REGEX_NODE_TYPE_ANCHOR_END});
             break;
 
         /* Captures */
         case '(':
             if (!parse_context(context, depth + 1))
                 return NULL;
-            parse_push(context,
-                       &(cregex_node_t){.type = REGEX_NODE_TYPE_CAPTURE,
-                                        .captured = parse_consume(context)});
+            push(context, &(cregex_node_t){.type = REGEX_NODE_TYPE_CAPTURE,
+                                           .captured = consume(context)});
             break;
         case ')':
             if (depth > 0)
-                return parse_concatenate(context, bottom);
+                return concatenate(context, bottom);
             /* unmatched close parenthesis */
             return NULL;
 
         /* End of string */
         case '\0':
             if (depth == 0)
-                return parse_concatenate(context, bottom);
+                return concatenate(context, bottom);
             /* unmatched open parenthesis */
             return NULL;
         }
