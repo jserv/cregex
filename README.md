@@ -8,6 +8,8 @@ It is based on two papers by Russ Cox:
 * [Regular Expression Matching: the Virtual Machine Approach](https://swtch.com/~rsc/regexp/regexp2.html)
 
 `cregex` supports a subset of the syntax and semantics of the [POSIX Basic Regular Expressions](https://www.regular-expressions.info/posix.html).
+The main design goal of `cregex` is to be small, correct, self contained and
+use few resources while retaining acceptable performance and feature completeness.
 
 ## Features
 
@@ -18,10 +20,22 @@ It is based on two papers by Russ Cox:
 * `??`, `*?`, `+?`, and `{x,y}?` non-greedy quantifiers
 * `(...)` capturing groups
 
-## Design Goals
+## Build and Test
 
-The main design goal of `cregex` is to be small, correct, self contained and
-use few resources while retaining acceptable performance and feature completeness.
+Simply run to build the library and test programs.
+```shell
+$ make
+```
+
+Run the tests from Go distribution.
+```shell
+$ make check
+```
+
+Visualize the regular expressions with [Graphviz](https://graphviz.org/).
+```shell
+$ tests/re2dot "(a*)(b{0,1})(b{1,})b{3}" | dot -Tpng -o out.png
+```
 
 ## License
 
