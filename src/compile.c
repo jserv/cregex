@@ -1,4 +1,4 @@
-#include <stddef.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 #include "cregex.h"
@@ -6,9 +6,9 @@
 typedef struct {
     cregex_program_instr_t *pc;
     int ncaptures;
-} cregex_compileContext;
+} regex_compile_context;
 
-static int cregex_compileCountInstructions(const cregex_node_t *node)
+static int count_instructions(const cregex_node_t *node)
 {
     int ninstructions;
 
@@ -25,15 +25,14 @@ static int cregex_compileCountInstructions(const cregex_node_t *node)
 
     /* Composites */
     case REGEX_NODE_TYPE_CONCATENATION:
-        return cregex_compileCountInstructions(node->left) +
-               cregex_compileCountInstructions(node->right);
+        return count_instructions(node->left) + count_instructions(node->right);
     case REGEX_NODE_TYPE_ALTERNATION:
-        return 2 + cregex_compileCountInstructions(node->left) +
-               cregex_compileCountInstructions(node->right);
+        return 2 + count_instructions(node->left) +
+               count_instructions(node->right);
 
     /* Quantifiers */
     case REGEX_NODE_TYPE_QUANTIFIER:
-        ninstructions = cregex_compileCountInstructions(node->quantified);
+        ninstructions = count_instructions(node->quantified);
         if (node->nmax >= node->nmin)
             return node->nmin * ninstructions +
                    (node->nmax - node->nmin) * (ninstructions + 1);
@@ -47,55 +46,54 @@ static int cregex_compileCountInstructions(const cregex_node_t *node)
 
     /* Captures */
     case REGEX_NODE_TYPE_CAPTURE:
-        return 2 + cregex_compileCountInstructions(node->captured);
+        return 2 + count_instructions(node->captured);
     }
 }
 
-static int cregex_compile_nodeIsAnchored(const cregex_node_t *node)
+static bool node_is_anchored(const cregex_node_t *node)
 {
     switch (node->type) {
     case REGEX_NODE_TYPE_EPSILON:
-        return 0;
+        return false;
 
     /* Characters */
     case REGEX_NODE_TYPE_CHARACTER:
     case REGEX_NODE_TYPE_ANY_CHARACTER:
     case REGEX_NODE_TYPE_CHARACTER_CLASS:
     case REGEX_NODE_TYPE_CHARACTER_CLASS_NEGATED:
-        return 0;
+        return false;
 
     /* Composites */
     case REGEX_NODE_TYPE_CONCATENATION:
-        return cregex_compile_nodeIsAnchored(node->left);
+        return node_is_anchored(node->left);
     case REGEX_NODE_TYPE_ALTERNATION:
-        return cregex_compile_nodeIsAnchored(node->left) &&
-               cregex_compile_nodeIsAnchored(node->right);
+        return node_is_anchored(node->left) && node_is_anchored(node->right);
 
     /* Quantifiers */
     case REGEX_NODE_TYPE_QUANTIFIER:
-        return cregex_compile_nodeIsAnchored(node->quantified);
+        return node_is_anchored(node->quantified);
 
     /* Anchors */
     case REGEX_NODE_TYPE_ANCHOR_BEGIN:
-        return 1;
+        return true;
     case REGEX_NODE_TYPE_ANCHOR_END:
-        return 0;
+        return false;
 
     /* Captures */
     case REGEX_NODE_TYPE_CAPTURE:
-        return cregex_compile_nodeIsAnchored(node->captured);
+        return node_is_anchored(node->captured);
     }
 }
 
-static inline cregex_program_instr_t *cregex_compileEmit(
-    cregex_compileContext *context,
+static inline cregex_program_instr_t *emit(
+    regex_compile_context *context,
     const cregex_program_instr_t *instruction)
 {
     *context->pc = *instruction;
     return context->pc++;
 }
 
-static cregex_program_instr_t *cregex_compileCharacterClass(
+static cregex_program_instr_t *compile_char_class(
     const cregex_node_t *node,
     cregex_program_instr_t *instruction)
 {
@@ -125,7 +123,7 @@ static cregex_program_instr_t *cregex_compileCharacterClass(
     }
 }
 
-static cregex_program_instr_t *compile_context(cregex_compileContext *context,
+static cregex_program_instr_t *compile_context(regex_compile_context *context,
                                                const cregex_node_t *node)
 {
     cregex_program_instr_t *bottom = context->pc, *split, *jump, *last;
@@ -137,30 +135,26 @@ static cregex_program_instr_t *compile_context(cregex_compileContext *context,
 
     /* Characters */
     case REGEX_NODE_TYPE_CHARACTER:
-        cregex_compileEmit(
-            context,
-            &(cregex_program_instr_t){.opcode = REGEX_PROGRAM_OPCODE_CHARACTER,
-                                      .ch = node->ch});
+        emit(context,
+             &(cregex_program_instr_t){.opcode = REGEX_PROGRAM_OPCODE_CHARACTER,
+                                       .ch = node->ch});
         break;
     case REGEX_NODE_TYPE_ANY_CHARACTER:
-        cregex_compileEmit(context,
-                           &(cregex_program_instr_t){
-                               .opcode = REGEX_PROGRAM_OPCODE_ANY_CHARACTER});
+        emit(context, &(cregex_program_instr_t){
+                          .opcode = REGEX_PROGRAM_OPCODE_ANY_CHARACTER});
         break;
     case REGEX_NODE_TYPE_CHARACTER_CLASS:
-        cregex_compileCharacterClass(
+        compile_char_class(
             node,
-            cregex_compileEmit(
-                context, &(cregex_program_instr_t){
-                             .opcode = REGEX_PROGRAM_OPCODE_CHARACTER_CLASS}));
+            emit(context, &(cregex_program_instr_t){
+                              .opcode = REGEX_PROGRAM_OPCODE_CHARACTER_CLASS}));
         break;
     case REGEX_NODE_TYPE_CHARACTER_CLASS_NEGATED:
-        cregex_compileCharacterClass(
+        compile_char_class(
             node,
-            cregex_compileEmit(
-                context,
-                &(cregex_program_instr_t){
-                    .opcode = REGEX_PROGRAM_OPCODE_CHARACTER_CLASS_NEGATED}));
+            emit(context,
+                 &(cregex_program_instr_t){
+                     .opcode = REGEX_PROGRAM_OPCODE_CHARACTER_CLASS_NEGATED}));
         break;
 
     /* Composites */
@@ -169,13 +163,11 @@ static cregex_program_instr_t *compile_context(cregex_compileContext *context,
         compile_context(context, node->right);
         break;
     case REGEX_NODE_TYPE_ALTERNATION:
-        split = cregex_compileEmit(
-            context,
-            &(cregex_program_instr_t){.opcode = REGEX_PROGRAM_OPCODE_SPLIT});
+        split = emit(context, &(cregex_program_instr_t){
+                                  .opcode = REGEX_PROGRAM_OPCODE_SPLIT});
         split->first = compile_context(context, node->left);
-        jump = cregex_compileEmit(
-            context,
-            &(cregex_program_instr_t){.opcode = REGEX_PROGRAM_OPCODE_JUMP});
+        jump = emit(context, &(cregex_program_instr_t){
+                                 .opcode = REGEX_PROGRAM_OPCODE_JUMP});
         split->second = compile_context(context, node->right);
         jump->target = context->pc;
         break;
@@ -189,9 +181,9 @@ static cregex_program_instr_t *compile_context(cregex_compileContext *context,
         if (node->nmax > node->nmin) {
             for (int i = 0; i < node->nmax - node->nmin; ++i) {
                 context->ncaptures = ncaptures;
-                split = cregex_compileEmit(
-                    context, &(cregex_program_instr_t){
-                                 .opcode = REGEX_PROGRAM_OPCODE_SPLIT});
+                split =
+                    emit(context, &(cregex_program_instr_t){
+                                      .opcode = REGEX_PROGRAM_OPCODE_SPLIT});
                 split->first = compile_context(context, node->quantified);
                 split->second = context->pc;
                 if (!node->greedy) {
@@ -201,14 +193,12 @@ static cregex_program_instr_t *compile_context(cregex_compileContext *context,
                 }
             }
         } else if (node->nmax == -1) {
-            split = cregex_compileEmit(
-                context, &(cregex_program_instr_t){
-                             .opcode = REGEX_PROGRAM_OPCODE_SPLIT});
+            split = emit(context, &(cregex_program_instr_t){
+                                      .opcode = REGEX_PROGRAM_OPCODE_SPLIT});
             if (node->nmin == 0) {
                 split->first = compile_context(context, node->quantified);
-                jump = cregex_compileEmit(
-                    context, &(cregex_program_instr_t){
-                                 .opcode = REGEX_PROGRAM_OPCODE_JUMP});
+                jump = emit(context, &(cregex_program_instr_t){
+                                         .opcode = REGEX_PROGRAM_OPCODE_JUMP});
                 split->second = context->pc;
                 jump->target = split;
             } else {
@@ -225,26 +215,24 @@ static cregex_program_instr_t *compile_context(cregex_compileContext *context,
 
     /* Anchors */
     case REGEX_NODE_TYPE_ANCHOR_BEGIN:
-        cregex_compileEmit(context,
-                           &(cregex_program_instr_t){
-                               .opcode = REGEX_PROGRAM_OPCODE_ASSERT_BEGIN});
+        emit(context, &(cregex_program_instr_t){
+                          .opcode = REGEX_PROGRAM_OPCODE_ASSERT_BEGIN});
         break;
     case REGEX_NODE_TYPE_ANCHOR_END:
-        cregex_compileEmit(context,
-                           &(cregex_program_instr_t){
-                               .opcode = REGEX_PROGRAM_OPCODE_ASSERT_END});
+        emit(context, &(cregex_program_instr_t){
+                          .opcode = REGEX_PROGRAM_OPCODE_ASSERT_END});
         break;
 
     /* Captures */
     case REGEX_NODE_TYPE_CAPTURE:
         capture = context->ncaptures++ * 2;
-        cregex_compileEmit(
-            context, &(cregex_program_instr_t){
-                         .opcode = REGEX_PROGRAM_OPCODE_SAVE, .save = capture});
+        emit(context,
+             &(cregex_program_instr_t){.opcode = REGEX_PROGRAM_OPCODE_SAVE,
+                                       .save = capture});
         compile_context(context, node->captured);
-        cregex_compileEmit(context, &(cregex_program_instr_t){
-                                        .opcode = REGEX_PROGRAM_OPCODE_SAVE,
-                                        .save = capture + 1});
+        emit(context,
+             &(cregex_program_instr_t){.opcode = REGEX_PROGRAM_OPCODE_SAVE,
+                                       .save = capture + 1});
         break;
     }
 
@@ -265,18 +253,17 @@ cregex_program_t *cregex_compile(const char *pattern)
 }
 
 /* Compile a parsed pattern (using a previously allocated program with at least
- * cregex_compileEstimateInstructions(root) instructions).
+ * estimate_instructions(root) instructions).
  */
-static cregex_program_t *cregex_compile_nodeWithProgram(
-    const cregex_node_t *root,
-    cregex_program_t *program)
+static cregex_program_t *compile_node_with_program(const cregex_node_t *root,
+                                                   cregex_program_t *program)
 {
-    // add capture node for entire match
+    /* add capture node for entire match */
     root = &(cregex_node_t){.type = REGEX_NODE_TYPE_CAPTURE,
                             .captured = (cregex_node_t *) root};
 
-    // add .*? unless pattern starts with ^
-    if (!cregex_compile_nodeIsAnchored(root))
+    /* add .*? unless pattern starts with ^ */
+    if (!node_is_anchored(root))
         root = &(cregex_node_t){
             .type = REGEX_NODE_TYPE_CONCATENATION,
             .left =
@@ -290,13 +277,13 @@ static cregex_program_t *cregex_compile_nodeWithProgram(
             .right = (cregex_node_t *) root};
 
     /* compile */
-    cregex_compileContext *context =
-        &(cregex_compileContext){.pc = program->instructions, .ncaptures = 0};
+    regex_compile_context *context =
+        &(regex_compile_context){.pc = program->instructions, .ncaptures = 0};
     compile_context(context, root);
 
     /* emit final match instruction */
-    cregex_compileEmit(context, &(cregex_program_instr_t){
-                                    .opcode = REGEX_PROGRAM_OPCODE_MATCH});
+    emit(context,
+         &(cregex_program_instr_t){.opcode = REGEX_PROGRAM_OPCODE_MATCH});
 
     /* set total number of instructions */
     program->ninstructions = context->pc - program->instructions;
@@ -305,26 +292,26 @@ static cregex_program_t *cregex_compile_nodeWithProgram(
 }
 
 /* Upper bound of number of instructions required to compile parsed pattern. */
-static int cregex_compileEstimateInstructions(const cregex_node_t *root)
+static int estimate_instructions(const cregex_node_t *root)
 {
-    return cregex_compileCountInstructions(root)
+    return count_instructions(root)
            /* .*? is added unless pattern starts with ^,
             * save instructions are added for beginning and end of match,
-            * a final match instruction is added to the end of the program */
-           + !cregex_compile_nodeIsAnchored(root) * 3 + 2 + 1;
+            * a final match instruction is added to the end of the program
+            */
+           + !node_is_anchored(root) * 3 + 2 + 1;
 }
 
 cregex_program_t *cregex_compile_node(const cregex_node_t *root)
 {
-    size_t size =
-        sizeof(cregex_program_t) + sizeof(cregex_program_instr_t) *
-                                       cregex_compileEstimateInstructions(root);
+    size_t size = sizeof(cregex_program_t) +
+                  sizeof(cregex_program_instr_t) * estimate_instructions(root);
     cregex_program_t *program;
 
     if (!(program = malloc(size)))
         return NULL;
 
-    if (!cregex_compile_nodeWithProgram(root, program)) {
+    if (!compile_node_with_program(root, program)) {
         free(program);
         return NULL;
     }
