@@ -1,6 +1,6 @@
 # cregex
 
-`cregex` is a small implementation of [regular expression](https://en.wikipedia.org/wiki/Regular_expression)
+`cregex` is a compact implementation of [regular expression](https://en.wikipedia.org/wiki/Regular_expression)
 (regex) matching engine in C. Its design was inspired by Rob Pike's regex-code for the book "Beautiful Code"
 [available online here](https://www.cs.princeton.edu/courses/archive/spr09/cos333/beautiful.html).
 It is based on two papers by Russ Cox:
