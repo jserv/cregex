@@ -196,9 +196,9 @@ int main(int argc, char *argv[])
     /* run program on string(s) */
     for (int i = 2; i < argc; ++i) {
         const char *matches[20] = {0};
-        int nmatches = 0;
 
         if (cregex_program_run(program, argv[i], matches, 20) > 0) {
+            int nmatches = 0;
             for (int j = 0; j < sizeof(matches) / sizeof(matches[0]); ++j)
                 if (matches[j])
                     nmatches = j;
