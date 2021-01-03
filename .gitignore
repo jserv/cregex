@@ -4,5 +4,7 @@ tests/driver.c
 tests/basic.dat
 tests/nullsubexpr.dat
 tests/repetition.dat
+tests/cli
+tests/re2dot
 *.o
 *.o.d
