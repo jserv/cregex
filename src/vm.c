@@ -5,11 +5,16 @@
 
 #define REGEX_VM_MAX_MATCHES 20
 
+/* The VM executes one or more threads, each running a regular expression
+ * program, which is just a list of regular expression instructions. Each
+ * thread maintains two registers while it runs: a program counter (PC) and
+ * a string pointer (SP).
+ */
 typedef struct {
     int visited;
     const cregex_program_instr_t *pc;
     const char *matches[REGEX_VM_MAX_MATCHES];
-} VMThread;
+} vm_thread;
 
 /* Run program on string */
 static int vm_run(const cregex_program_t *program,
@@ -24,7 +29,7 @@ static int vm_run_with_threads(const cregex_program_t *program,
                                const char *string,
                                const char **matches,
                                int nmatches,
-                               VMThread *threads);
+                               vm_thread *threads);
 
 typedef struct {
     const char *string, *sp;
@@ -32,10 +37,10 @@ typedef struct {
 
 typedef struct {
     int nthreads;
-    VMThread *threads;
-} VMThreadList;
+    vm_thread *threads;
+} vm_thread_list;
 
-static void vm_add_thread(VMThreadList *list,
+static void vm_add_thread(vm_thread_list *list,
                           const cregex_program_t *program,
                           const cregex_program_instr_t *pc,
                           const char *string,
@@ -108,8 +113,8 @@ static int vm_run(const cregex_program_t *program,
                   const char **matches,
                   int nmatches)
 {
-    size_t size = sizeof(VMThread) * vm_estimate_threads(program);
-    VMThread *threads;
+    size_t size = sizeof(vm_thread) * vm_estimate_threads(program);
+    vm_thread *threads;
     int matched;
 
     if (!(threads = malloc(size)))
@@ -124,21 +129,22 @@ static int vm_run_with_threads(const cregex_program_t *program,
                                const char *string,
                                const char **matches,
                                int nmatches,
-                               VMThread *threads)
+                               vm_thread *threads)
 {
-    VMThreadList *current = &(VMThreadList){.nthreads = 0, .threads = threads};
-    VMThreadList *next = &(VMThreadList){
+    vm_thread_list *current =
+        &(vm_thread_list){.nthreads = 0, .threads = threads};
+    vm_thread_list *next = &(vm_thread_list){
         .nthreads = 0, .threads = threads + program->ninstructions};
     int matched = 0;
 
-    memset(threads, 0, sizeof(VMThread) * program->ninstructions * 2);
+    memset(threads, 0, sizeof(vm_thread) * program->ninstructions * 2);
 
     vm_add_thread(current, program, program->instructions, string, string,
                   matches, nmatches);
 
     for (const char *sp = string;; ++sp) {
         for (int i = 0; i < current->nthreads; ++i) {
-            VMThread *thread = current->threads + i;
+            vm_thread *thread = current->threads + i;
             switch (thread->pc->opcode) {
             case REGEX_PROGRAM_OPCODE_MATCH:
                 matched = 1;
@@ -188,7 +194,7 @@ static int vm_run_with_threads(const cregex_program_t *program,
         }
 
         /* swap current and next thread list */
-        VMThreadList *swap = current;
+        vm_thread_list *swap = current;
         current = next;
         next = swap;
         next->nthreads = 0;
