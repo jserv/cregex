@@ -1,61 +1,45 @@
 PROGS := driver cli re2dot
-
 PROGS := $(addprefix tests/,$(PROGS))
 
 OBJS := src/compile.o \
         src/parse.o \
         src/vm.o
-deps := $(OBJS:%.o=%.o.d)
+deps := $(OBJS:%.o=%.o.d) $(PROGS:%=%.o.d)
 
+include mk/common.mk
+
+CC      ?= gcc
 CFLAGS  += -std=c11 -Wall -pedantic
 CFLAGS  += -Iinclude 
 
 .PHONY: all
 all: CFLAGS   += -DNDEBUG -O2
-all: $(PROGS)
+all: $(OBJS) $(PROGS)
 
 .PHONY: debug
 debug: CFLAGS   += -DDEBUG -g
 debug: LDFLAGS  += -g
-debug: $(PROGS)
+debug: $(OBJS) $(PROGS)
 
-tests/cli: tests/cli.o $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
-
-tests/re2dot: tests/re2dot.o $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
-
-tests/driver: tests/driver.o $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
-
-TESTDATA = basic.dat nullsubexpr.dat repetition.dat
-TESTDATA := $(addprefix tests/,$(TESTDATA))
-
-tests/basic.dat:
-	wget -O $@ https://golang.org/src/regexp/testdata/basic.dat?m=text
-	# FIXME: clarify if it was an imcomplete test item
-	sed -i '/9876543210/d' $@
-
-tests/nullsubexpr.dat:
-	wget -O $@ https://golang.org/src/regexp/testdata/nullsubexpr.dat?m=text
-
-tests/repetition.dat:
-	wget -O $@ https://golang.org/src/regexp/testdata/repetition.dat?m=text
-
+include mk/test-data.mk
 tests/driver.c: tests/generator.rb $(TESTDATA)
-	tests/generator.rb $(TESTDATA) > $@
-
-check: $(PROGS)
-	tests/driver
+	$(VECHO) "  GEN\t$@\n"
+	$(Q)tests/generator.rb $(TESTDATA) > $@
+check: tests/driver
+	$(Q)$<
 
 %.o: %.c
-	$(CC) $(CFLAGS) -MMD -MF $@.d -c -o $@ $<
+	$(VECHO) "  CC\t$@\n"
+	$(Q)$(CC) $(CFLAGS) -MMD -MF $@.d -c -o $@ $<
+
+tests/%: tests/%.o $(OBJS)
+	$(VECHO) "  CC+LD\t$@\n"
+	$(Q)$(CC) $(LDFLAGS) -o $@ $^
 
 .PHONY: clean
 clean:
-	$(RM) $(PROGS) tests/*.o $(OBJS) $(deps)
-
+	$(RM) $(PROGS) $(PROGS:%=%.o) $(OBJS) $(deps)
 distclean: clean
-	$(RM) tests/driver.c $(TESTDATA)
+	-$(RM) tests/driver.c $(TESTDATA)
 
 -include $(deps)
