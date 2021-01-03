@@ -1,0 +1,8 @@
+tests/driver
+tests/driver.o
+tests/driver.c
+tests/basic.dat
+tests/nullsubexpr.dat
+tests/repetition.dat
+*.o
+*.o.d
