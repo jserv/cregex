@@ -123,9 +123,6 @@ int cregex_program_run(const cregex_program_t *program,
                        const char **matches,
                        int nmatches);
 
-/* Compile a pattern */
-cregex_program_t *cregex_compile(const char *pattern);
-
 /* Compile a parsed pattern */
 cregex_program_t *cregex_compile_node(const cregex_node_t *root);
 

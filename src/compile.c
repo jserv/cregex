@@ -245,19 +245,6 @@ static cregex_program_instr_t *compile_context(regex_compile_context *context,
     return bottom;
 }
 
-cregex_program_t *cregex_compile(const char *pattern)
-{
-    cregex_node_t *root;
-    cregex_program_t *program;
-
-    if (!(root = cregex_parse(pattern)))
-        return NULL;
-
-    program = cregex_compile_node(root);
-    cregex_parse_free(root);
-    return program;
-}
-
 /* Compile a parsed pattern (using a previously allocated program with at least
  * estimate_instructions(root) instructions).
  */

@@ -32,10 +32,6 @@ static int vm_run_with_threads(const cregex_program_t *program,
                                vm_thread *threads);
 
 typedef struct {
-    const char *string, *sp;
-} vm_context;
-
-typedef struct {
     int nthreads;
     vm_thread *threads;
 } vm_thread_list;
