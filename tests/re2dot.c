@@ -4,12 +4,12 @@
 
 #include <cregex.h>
 
-void printUsage(FILE *file, const char *program)
+static void usage(FILE *file, const char *program)
 {
     fprintf(file, "usage: %s pattern\n", program);
 }
 
-void printNode(FILE *file, const cregex_node_t *node)
+static void print_node(FILE *file, const cregex_node_t *node)
 {
     switch (node->type) {
     case REGEX_NODE_TYPE_EPSILON:
@@ -48,9 +48,9 @@ void printNode(FILE *file, const cregex_node_t *node)
                 "node%p[label=\"concatenation\",shape=box,style=\"rounded\""
                 ",fontname=\"times-italic\"];\n",
                 (void *) node);
-        printNode(file, node->left);
+        print_node(file, node->left);
         fprintf(file, "node%p->node%p;\n", (void *) node, (void *) node->left);
-        printNode(file, node->right);
+        print_node(file, node->right);
         fprintf(file, "node%p->node%p;\n", (void *) node, (void *) node->right);
         break;
     case REGEX_NODE_TYPE_ALTERNATION:
@@ -58,9 +58,9 @@ void printNode(FILE *file, const cregex_node_t *node)
                 "node%p[label=\"alternation\",shape=diamond,style=\"rounded\""
                 ",fontname=\"times-italic\"];\n",
                 (void *) node);
-        printNode(file, node->left);
+        print_node(file, node->left);
         fprintf(file, "node%p->node%p;\n", (void *) node, (void *) node->left);
-        printNode(file, node->right);
+        print_node(file, node->right);
         fprintf(file, "node%p->node%p;\n", (void *) node, (void *) node->right);
         break;
 
@@ -75,7 +75,7 @@ void printNode(FILE *file, const cregex_node_t *node)
             fprintf(file, "\",shape=ellipse,style=\"dotted\"];\n");
         else
             fprintf(file, "\",shape=ellipse];\n");
-        printNode(file, node->quantified);
+        print_node(file, node->quantified);
         fprintf(file, "node%p->node%p;\n", (void *) node,
                 (void *) node->quantified);
         break;
@@ -94,17 +94,17 @@ void printNode(FILE *file, const cregex_node_t *node)
                 "node%p[label=\"capture\",shape=parallelogram,"
                 "style=\"rounded\",fontname=\"times-italic\"];\n",
                 (void *) node);
-        printNode(file, node->captured);
+        print_node(file, node->captured);
         fprintf(file, "node%p->node%p;\n", (void *) node,
                 (void *) node->captured);
         break;
     }
 }
 
-void printDot(FILE *file, const cregex_node_t *node)
+static void print_dot(FILE *file, const cregex_node_t *node)
 {
     fprintf(file, "digraph cregex_ {\n");
-    printNode(file, node);
+    print_node(file, node);
     fprintf(file, "}\n");
 }
 
@@ -112,20 +112,20 @@ int main(int argc, char *argv[])
 {
     cregex_node_t *node;
 
-    // process command line
+    /* process command line */
     if (argc < 2 || argc > 3) {
-        printUsage(stderr, argv[0]);
+        usage(stderr, argv[0]);
         return EXIT_FAILURE;
     }
 
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
-        printUsage(stdout, argv[0]);
+        usage(stdout, argv[0]);
         return EXIT_SUCCESS;
     }
 
-    // parse pattern
+    /* parse pattern */
     if ((node = cregex_parse(argv[1])))
-        printDot(stdout, node);
+        print_dot(stdout, node);
     else {
         fprintf(stderr, "%s: cregex_parse() failed\n", argv[0]);
         return EXIT_FAILURE;

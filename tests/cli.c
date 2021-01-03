@@ -5,12 +5,12 @@
 
 #include <cregex.h>
 
-void printUsage(FILE *file, const char *program)
+static void usage(FILE *file, const char *program)
 {
     fprintf(file, "usage: %s pattern [string...]\n", program);
 }
 
-void printNode(FILE *file, cregex_node_t *node, int depth)
+static void print_node(FILE *file, cregex_node_t *node, int depth)
 {
     switch (node->type) {
     case REGEX_NODE_TYPE_EPSILON:
@@ -37,23 +37,23 @@ void printNode(FILE *file, cregex_node_t *node, int depth)
     /* Composites */
     case REGEX_NODE_TYPE_CONCATENATION:
         fprintf(file, "concatenation(");
-        printNode(file, node->left, depth + 1);
+        print_node(file, node->left, depth + 1);
         fprintf(file, ", ");
-        printNode(file, node->right, depth + 1);
+        print_node(file, node->right, depth + 1);
         fprintf(file, ")");
         break;
     case REGEX_NODE_TYPE_ALTERNATION:
         fprintf(file, "alternation(");
-        printNode(file, node->left, depth + 1);
+        print_node(file, node->left, depth + 1);
         fprintf(file, ", ");
-        printNode(file, node->right, depth + 1);
+        print_node(file, node->right, depth + 1);
         fprintf(file, ")");
         break;
 
     /* Quantifiers */
     case REGEX_NODE_TYPE_QUANTIFIER:
         fprintf(file, "quantifier(");
-        printNode(file, node->quantified, depth + 1);
+        print_node(file, node->quantified, depth + 1);
         fprintf(file, ", %d, %d, %s)", node->nmin, node->nmax,
                 node->greedy ? "greedy" : "non_greedy");
         break;
@@ -69,7 +69,7 @@ void printNode(FILE *file, cregex_node_t *node, int depth)
     /* Captures */
     case REGEX_NODE_TYPE_CAPTURE:
         fprintf(file, "capture(");
-        printNode(file, node->captured, depth + 1);
+        print_node(file, node->captured, depth + 1);
         fprintf(file, ")");
         break;
     }
@@ -78,7 +78,8 @@ void printNode(FILE *file, cregex_node_t *node, int depth)
         fprintf(file, "\n");
 }
 
-void printCharacterClass(FILE *file, const cregex_program_instr_t *instruction)
+static void print_char_class(FILE *file,
+                             const cregex_program_instr_t *instruction)
 {
     for (int ch = 0, to; ch < UCHAR_MAX; ++ch) {
         if (cregex_char_class_contains(instruction->klass, ch)) {
@@ -94,9 +95,9 @@ void printCharacterClass(FILE *file, const cregex_program_instr_t *instruction)
     }
 }
 
-void printInstruction(FILE *file,
-                      const cregex_program_t *program,
-                      const cregex_program_instr_t *instruction)
+static void print_instruction(FILE *file,
+                              const cregex_program_t *program,
+                              const cregex_program_instr_t *instruction)
 {
     fprintf(file, "[%04x] ", (int) (instruction - program->instructions));
 
@@ -117,12 +118,12 @@ void printInstruction(FILE *file,
         break;
     case REGEX_PROGRAM_OPCODE_CHARACTER_CLASS:
         fprintf(file, "CHARACTER_CLASS [");
-        printCharacterClass(file, instruction);
+        print_char_class(file, instruction);
         fprintf(file, "]\n");
         break;
     case REGEX_PROGRAM_OPCODE_CHARACTER_CLASS_NEGATED:
         fprintf(file, "CHARACTER_CLASS_NEGATED [^");
-        printCharacterClass(file, instruction);
+        print_char_class(file, instruction);
         fprintf(file, "]\n");
         break;
 
@@ -152,10 +153,10 @@ void printInstruction(FILE *file,
     }
 }
 
-void printProgram(FILE *file, const cregex_program_t *program)
+static void print_program(FILE *file, const cregex_program_t *program)
 {
     for (int i = 0; i < program->ninstructions; ++i)
-        printInstruction(file, program, program->instructions + i);
+        print_instruction(file, program, program->instructions + i);
 }
 
 int main(int argc, char *argv[])
@@ -163,36 +164,36 @@ int main(int argc, char *argv[])
     cregex_node_t *node;
     cregex_program_t *program;
 
-    // process command line
+    /* process command line */
     if (argc < 2) {
-        printUsage(stderr, argv[0]);
+        usage(stderr, argv[0]);
         return EXIT_FAILURE;
     }
 
     if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
-        printUsage(stdout, argv[0]);
+        usage(stdout, argv[0]);
         return EXIT_SUCCESS;
     }
 
-    // parse pattern
+    /* parse pattern */
     if ((node = cregex_parse(argv[1])))
-        printNode(stdout, node, 0);
+        print_node(stdout, node, 0);
     else {
         fprintf(stderr, "%s: cregex_parse() failed\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    // compile parsed pattern
+    /* compile parsed pattern */
     program = cregex_compile_node(node);
     cregex_parse_free(node);
     if (program)
-        printProgram(stdout, program);
+        print_program(stdout, program);
     else {
         fprintf(stderr, "%s: cregex_compile_node() failed\n", argv[0]);
         return EXIT_FAILURE;
     }
 
-    // run program on string(s)
+    /* run program on string(s) */
     for (int i = 2; i < argc; ++i) {
         const char *matches[20] = {0};
         int nmatches = 0;
