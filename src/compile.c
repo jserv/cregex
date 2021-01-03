@@ -10,8 +10,6 @@ typedef struct {
 
 static int count_instructions(const cregex_node_t *node)
 {
-    int ninstructions;
-
     switch (node->type) {
     case REGEX_NODE_TYPE_EPSILON:
         return 0;
@@ -31,13 +29,12 @@ static int count_instructions(const cregex_node_t *node)
                count_instructions(node->right);
 
     /* Quantifiers */
-    case REGEX_NODE_TYPE_QUANTIFIER:
-        ninstructions = count_instructions(node->quantified);
+    case REGEX_NODE_TYPE_QUANTIFIER: {
+        int num = count_instructions(node->quantified);
         if (node->nmax >= node->nmin)
-            return node->nmin * ninstructions +
-                   (node->nmax - node->nmin) * (ninstructions + 1);
-        return 1 +
-               (node->nmin ? node->nmin * ninstructions : ninstructions + 1);
+            return node->nmin * num + (node->nmax - node->nmin) * (num + 1);
+        return 1 + (node->nmin ? node->nmin * num : num + 1);
+    }
 
     /* Anchors */
     case REGEX_NODE_TYPE_ANCHOR_BEGIN:
