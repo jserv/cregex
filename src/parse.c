@@ -7,13 +7,13 @@
 typedef struct {
     const char *sp;
     cregex_node_t *stack, *output;
-} cregex_parseContext;
+} regex_parse_context;
 
 /* Shunting-yard algorithm
  * See https://en.wikipedia.org/wiki/Shunting-yard_algorithm
  */
 
-static inline cregex_node_t *push(cregex_parseContext *context,
+static inline cregex_node_t *push(regex_parse_context *context,
                                   const cregex_node_t *node)
 {
     assert(context->stack <= context->output);
@@ -21,18 +21,18 @@ static inline cregex_node_t *push(cregex_parseContext *context,
     return context->stack++;
 }
 
-static inline cregex_node_t *drop(cregex_parseContext *context)
+static inline cregex_node_t *drop(regex_parse_context *context)
 {
     return --context->stack;
 }
 
-static inline cregex_node_t *consume(cregex_parseContext *context)
+static inline cregex_node_t *consume(regex_parse_context *context)
 {
     *--context->output = *--context->stack;
     return context->output;
 }
 
-static inline cregex_node_t *concatenate(cregex_parseContext *context,
+static inline cregex_node_t *concatenate(regex_parse_context *context,
                                          const cregex_node_t *bottom)
 {
     if (context->stack == bottom)
@@ -50,7 +50,7 @@ static inline cregex_node_t *concatenate(cregex_parseContext *context,
     return context->stack - 1;
 }
 
-static cregex_node_t *parse_char_class(cregex_parseContext *context)
+static cregex_node_t *parse_char_class(regex_parse_context *context)
 {
     cregex_node_type type =
         (*context->sp == '^')
@@ -86,7 +86,7 @@ static cregex_node_t *parse_char_class(cregex_parseContext *context)
     }
 }
 
-static cregex_node_t *parse_interval(cregex_parseContext *context)
+static cregex_node_t *parse_interval(regex_parse_context *context)
 {
     const char *from = context->sp;
     int nmin, nmax;
@@ -125,7 +125,7 @@ static cregex_node_t *parse_interval(cregex_parseContext *context)
                     .quantified = consume(context)});
 }
 
-static cregex_node_t *parse_context(cregex_parseContext *context, int depth)
+static cregex_node_t *parse_context(regex_parse_context *context, int depth)
 {
     cregex_node_t *bottom = context->stack;
 
@@ -256,8 +256,8 @@ static int parse_estimate_nodes(const char *pattern)
 static cregex_node_t *parse_with_nodes(const char *pattern,
                                        cregex_node_t *nodes)
 {
-    cregex_parseContext *context =
-        &(cregex_parseContext){.sp = pattern,
+    regex_parse_context *context =
+        &(regex_parse_context){.sp = pattern,
                                .stack = nodes,
                                .output = nodes + parse_estimate_nodes(pattern)};
     return parse_context(context, 0);
