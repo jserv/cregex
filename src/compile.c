@@ -129,7 +129,7 @@ static cregex_program_instr_t *compile_char_class(
 static cregex_program_instr_t *compile_context(regex_compile_context *context,
                                                const cregex_node_t *node)
 {
-    cregex_program_instr_t *bottom = context->pc, *split, *jump, *last;
+    cregex_program_instr_t *bottom = context->pc, *split, *jump;
     int ncaptures = context->ncaptures, capture;
 
     switch (node->type) {
@@ -176,7 +176,8 @@ static cregex_program_instr_t *compile_context(regex_compile_context *context,
         break;
 
     /* Quantifiers */
-    case REGEX_NODE_TYPE_QUANTIFIER:
+    case REGEX_NODE_TYPE_QUANTIFIER: {
+        cregex_program_instr_t *last = NULL;
         for (int i = 0; i < node->nmin; ++i) {
             context->ncaptures = ncaptures;
             last = compile_context(context, node->quantified);
@@ -215,6 +216,7 @@ static cregex_program_instr_t *compile_context(regex_compile_context *context,
             }
         }
         break;
+    }
 
     /* Anchors */
     case REGEX_NODE_TYPE_ANCHOR_BEGIN:
