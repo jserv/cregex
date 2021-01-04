@@ -245,13 +245,13 @@ static cregex_node_t *parse_context(regex_parse_context *context, int depth)
     }
 }
 
-static int parse_estimate_nodes(const char *pattern)
+static inline int estimate_nodes(const char *pattern)
 {
     return strlen(pattern) * 2;
 }
 
 /* Parse a pattern (using a previously allocated buffer of at least
- * parse_estimate_nodes(pattern) nodes).
+ * estimate_nodes(pattern) nodes).
  */
 static cregex_node_t *parse_with_nodes(const char *pattern,
                                        cregex_node_t *nodes)
@@ -259,16 +259,15 @@ static cregex_node_t *parse_with_nodes(const char *pattern,
     regex_parse_context *context =
         &(regex_parse_context){.sp = pattern,
                                .stack = nodes,
-                               .output = nodes + parse_estimate_nodes(pattern)};
+                               .output = nodes + estimate_nodes(pattern)};
     return parse_context(context, 0);
 }
 
 cregex_node_t *cregex_parse(const char *pattern)
 {
-    size_t size = sizeof(cregex_node_t) * parse_estimate_nodes(pattern);
-    cregex_node_t *nodes;
-
-    if (!(nodes = malloc(size)))
+    size_t size = sizeof(cregex_node_t) * estimate_nodes(pattern);
+    cregex_node_t *nodes = malloc(size);
+    if (!nodes)
         return NULL;
 
     if (!parse_with_nodes(pattern, nodes)) {
