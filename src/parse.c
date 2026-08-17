@@ -247,7 +247,7 @@ static cregex_node_t *parse_context(regex_parse_context *context, int depth)
 
 static inline int estimate_nodes(const char *pattern)
 {
-    return strlen(pattern) * 2;
+    return strlen(pattern) * 2 + 1;
 }
 
 /* Parse a pattern (using a previously allocated buffer of at least
